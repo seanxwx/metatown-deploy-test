@@ -9,7 +9,7 @@ const getLastVisitedSpaces = async (): Promise<LastVisitedSpaces | null> => {
   const recentDateRange = new Date()
   recentDateRange.setDate(recentDateRange.getDate() - 3)
 
-  const { data: spaces } = await supabaseClient
+  const { data: spaces, error } = await supabaseClient
     .from('spaces')
     .select(
       `
@@ -19,14 +19,20 @@ const getLastVisitedSpaces = async (): Promise<LastVisitedSpaces | null> => {
     )
     .gte('user_space_presences.last_seen_at', recentDateRange.toISOString())
 
-  if (!spaces) {
+  if (error) {
     return null
   }
 
-  return camelcaseKeys(spaces).map(({ id, name }) => ({
-    id,
-    name,
-  }))
+  if (Array.isArray(spaces)) {
+    return (camelcaseKeys(spaces) as { id: string; name: string }[]).map(
+      (space) => ({
+        id: space.id,
+        name: space.name,
+      })
+    )
+  }
+
+  return null
 }
 
 export default getLastVisitedSpaces

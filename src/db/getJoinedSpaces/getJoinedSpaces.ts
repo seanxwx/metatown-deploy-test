@@ -27,10 +27,12 @@ const getJoinedSpaces = async ([, userId]: [
     return null
   }
 
-  return camelcaseKeys(joinedSpaces).map(({ id, name }) => ({
-    id,
-    name,
-  }))
+  return (camelcaseKeys(joinedSpaces) as { id: string; name: string }[]).map(
+    ({ id, name }: { id: string; name: string }) => ({
+      id,
+      name,
+    })
+  )
 }
 
 export default getJoinedSpaces

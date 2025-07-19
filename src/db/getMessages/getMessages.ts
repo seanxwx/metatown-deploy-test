@@ -24,7 +24,7 @@ const getMessages = async ([, spaceId]: [string, string]): Promise<
     return []
   }
 
-  return camelcaseKeys(messages)
+  return camelcaseKeys(messages) as Message[]
 }
 
 export default getMessages
