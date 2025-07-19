@@ -1,0 +1,1 @@
+alter table public.spaces enable row level security;

@@ -1,0 +1,114 @@
+name: CI Checks
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  db-migration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Set Doppler Token Based on Branch
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "DOPPLER_TOKEN=${{ secrets.DOPPLER_TOKEN_PROD }}" >> $GITHUB_ENV
+          else
+            echo "DOPPLER_TOKEN=${{ secrets.DOPPLER_TOKEN_STG_V2 }}" >> $GITHUB_ENV
+          fi
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      - name: Load Doppler Secrets into ENV
+        run: |
+          doppler secrets download --no-file --format env > .env
+        env:
+          DOPPLER_TOKEN: ${{ env.DOPPLER_TOKEN }}
+
+      - name: Deploy DB Migrations
+        run: |
+          npx prisma migrate deploy
+
+      - name: Generate DB types
+        run: |
+          npx dotenv -- npm run gen-types
+
+      - name: Upload DB Types as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-types
+          path: database.types.ts
+          if-no-files-found: error
+
+  unit-test:
+    needs: [db-migration]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Download DB Types Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-types
+
+      - name: Run unit tests
+        run: npm run test
+
+  code-check:
+    needs: [db-migration]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Download DB Types Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: db-types
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier
+        run: npm run format:check
+
+      - name: Run TypeScript Check
+        run: npm run type-check

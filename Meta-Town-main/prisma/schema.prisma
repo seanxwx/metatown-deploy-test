@@ -1,0 +1,165 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+
+  auth_id      String   @unique @db.Uuid()
+  display_name String
+  avatar       String
+  created_at   DateTime @default(now()) @db.Timestamptz()
+
+  owned_spaces     Space[]              @relation("user_owned_spaces")
+  joined_spaces    Space[]              @relation("users_joined_spaces")
+  spaces_positions UserSpacePosition[]
+  spaces_presences UserSpacePresence[]
+  spaces_mediasoup UserSpaceMediasoup[]
+  messages         Message[]
+
+  @@map("users")
+}
+
+model Space {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  owner_id String @db.Uuid()
+
+  name       String
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  owner           User                 @relation("user_owned_spaces", fields: [owner_id], references: [id])
+  users           User[]               @relation("users_joined_spaces")
+  users_positions UserSpacePosition[]
+  users_presences UserSpacePresence[]
+  users_mediasoup UserSpaceMediasoup[]
+  stage_config    StageConfig?
+  messages        Message[]
+  spaces          Zone[]
+
+  @@map("spaces")
+}
+
+enum Direction {
+  N
+  E
+  S
+  W
+}
+
+model UserSpacePosition {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  user_id  String @db.Uuid()
+  space_id String @db.Uuid()
+
+  x          Int
+  y          Int
+  direction  Direction
+  is_moving  Boolean   @default(false)
+  created_at DateTime  @default(now()) @db.Timestamptz()
+  updated_at DateTime  @default(now()) @updatedAt @db.Timestamptz()
+
+  user  User  @relation(fields: [user_id], references: [id])
+  space Space @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, space_id])
+  @@map("user_space_positions")
+}
+
+enum Status {
+  ONLINE
+  OFFLINE
+}
+
+model UserSpacePresence {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  user_id  String @db.Uuid()
+  space_id String @db.Uuid()
+
+  status       Status
+  last_seen_at DateTime @default(now()) @db.Timestamptz()
+
+  user  User  @relation(fields: [user_id], references: [id])
+  space Space @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, space_id])
+  @@map("user_space_presences")
+}
+
+enum State {
+  ACTIVE
+  PAUSED
+}
+
+enum MediaKind {
+  audio
+  video
+  screen
+}
+
+model UserSpaceMediasoup {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  user_id  String @db.Uuid()
+  space_id String @db.Uuid()
+
+  created_at  DateTime  @default(now()) @db.Timestamptz()
+  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamptz()
+  producer_id String
+  state       State
+  kind        MediaKind
+
+  user  User  @relation(fields: [user_id], references: [id])
+  space Space @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, space_id, kind])
+  @@map("user_space_mediasoup")
+}
+
+model StageConfig {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  space_id String @unique @db.Uuid()
+
+  rows    Int
+  columns Int
+  blocks   Json?
+  entry   Json
+  grounds  Json?
+  zones   Json?
+
+  space Space @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@map("stage_configs")
+}
+
+model Message {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  space_id  String @db.Uuid()
+  sender_id String @db.Uuid()
+
+  content    Json
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  space  Space @relation(fields: [space_id], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [sender_id], references: [id])
+
+  @@map("messages")
+}
+
+enum ZoneType {
+  MEETING
+}
+
+model Zone {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid()
+  space_id String @db.Uuid()
+
+  name       String
+  type       ZoneType
+  size       Int?
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  space Space @relation(fields: [space_id], references: [id], onDelete: Cascade)
+
+  @@map("zones")
+}
